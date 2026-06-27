@@ -75,4 +75,3 @@ predictive insights — in English or Kannada.
 
 ---
 
-## 🏗️ Architecture
