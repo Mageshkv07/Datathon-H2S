@@ -1,7 +1,4 @@
 fastapi
 uvicorn
-pandas==2.2.2
 anthropic
-python-multipart
 pydantic
-numpy==1.26.4
