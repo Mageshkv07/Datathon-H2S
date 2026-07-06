@@ -235,7 +235,7 @@ function HotspotMap() {
       });
 
     // Add FIR points
-    const points = crimeData.fir_points || [];
+    const points = (crimeData.fir_points || []).map
     points.forEach(p => {
       if (!p.Latitude || !p.Longitude) return;
       const lat = parseFloat(p.Latitude), lon = parseFloat(p.Longitude);
