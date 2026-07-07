@@ -199,7 +199,7 @@ function HotspotMap() {
     }).addTo(map);
 
     // Load GeoJSON
-    fetch('/karnataka.geojson')
+    fetch('https://raw.githubusercontent.com/Mageshkv07/Datathon-H2S/main/public/karnataka.geojson')
       .then(r => r.json())
       .then(geo => {
         const distCounts = {};
