@@ -184,83 +184,104 @@ function Dashboard() {
 function HotspotMap() {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
-  const [filter, setFilter] = useState('all');
-
-  const crimeGroups = ['all', ...crimeData.crime_groups.slice(0,8)];
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (mapInstance.current) return;
+    if (!mapRef.current) return;
+
     const L = window.L;
-    const map = L.map(mapRef.current, { center: [14.5, 75.7], zoom: 7, zoomControl: true });
-    mapInstance.current = map;
+    if (!L) return;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '©OpenStreetMap ©CartoDB', subdomains: 'abcd', maxZoom: 19
-    }).addTo(map);
+    try {
+      const map = L.map(mapRef.current, { 
+        center: [14.5, 75.7], 
+        zoom: 7,
+        zoomControl: true 
+      });
+      mapInstance.current = map;
 
-    // Load GeoJSON
-    fetch('https://raw.githubusercontent.com/Mageshkv07/Datathon-H2S/main/public/karnataka.geojson')
-      .then(r => r.json())
-      .then(geo => {
-        const distCounts = {};
-        crimeData.dist_total.forEach(d => {
-          const key = d.District_Name || d.district;
-          distCounts[key] = d.total || 0;
-        });
-        const maxCount = Math.max(...Object.values(distCounts));
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '©OpenStreetMap ©CartoDB',
+        subdomains: 'abcd',
+        maxZoom: 19
+      }).addTo(map);
 
-        L.geoJSON(geo, {
-          style: (feature) => {
-            const name = feature.properties.dtname;
-            const matchKey = Object.keys(distCounts).find(k => k.toLowerCase().includes(name.toLowerCase().split(' ')[0]) || name.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
-            const count = matchKey ? distCounts[matchKey] : 0;
-            const intensity = count / maxCount;
-            return {
-              fillColor: `rgba(59,130,246,${0.1 + intensity * 0.7})`,
-              fillOpacity: 0.7,
-              color: '#3b82f6',
-              weight: 1,
-              opacity: 0.6
-            };
-          },
-          onEachFeature: (feature, layer) => {
-            const name = feature.properties.dtname;
-            const matchKey = Object.keys(distCounts).find(k => k.toLowerCase().includes(name.toLowerCase().split(' ')[0]) || name.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
-            const count = matchKey ? distCounts[matchKey] : 'N/A';
-            layer.bindPopup(`<div style="font-family:Inter,sans-serif;min-width:160px"><b style="color:#3b82f6">${name}</b><br/>Total FIRs: <b>${count?.toLocaleString?.() || count}</b></div>`);
-            layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.9, weight: 2 }); });
-            layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.7, weight: 1 }); });
-          }
-        }).addTo(map);
+      // Load GeoJSON from GitHub raw
+      fetch('https://raw.githubusercontent.com/Mageshkv07/Datathon-H2S/main/public/karnataka.geojson')
+        .then(r => r.json())
+        .then(geo => {
+          const distCounts = {};
+          (crimeData.dist_total || []).forEach(d => {
+            const key = d.District_Name || d.district;
+            distCounts[key] = d.total || 0;
+          });
+          const maxCount = Math.max(...Object.values(distCounts), 1);
+
+          L.geoJSON(geo, {
+            style: (feature) => {
+              const name = feature.properties.dtname;
+              const matchKey = Object.keys(distCounts).find(k =>
+                k.toLowerCase().includes(name.toLowerCase().split(' ')[0]) ||
+                name.toLowerCase().includes(k.toLowerCase().split(' ')[0])
+              );
+              const count = matchKey ? distCounts[matchKey] : 0;
+              const intensity = count / maxCount;
+              return {
+                fillColor: `rgba(59,130,246,${0.1 + intensity * 0.7})`,
+                fillOpacity: 0.7,
+                color: '#3b82f6',
+                weight: 1,
+                opacity: 0.6
+              };
+            },
+            onEachFeature: (feature, layer) => {
+              const name = feature.properties.dtname;
+              layer.bindPopup(`<div style="font-family:Inter,sans-serif"><b style="color:#3b82f6">${name}</b></div>`);
+              layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.9, weight: 2 }); });
+              layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.7, weight: 1 }); });
+            }
+          }).addTo(map);
+        })
+        .catch(err => console.log('GeoJSON error:', err));
+
+      // Add FIR points
+      (crimeData.fir_points || []).forEach(p => {
+        if (!p.Latitude || !p.Longitude) return;
+        const lat = parseFloat(p.Latitude);
+        const lon = parseFloat(p.Longitude);
+        if (isNaN(lat) || isNaN(lon)) return;
+        L.circleMarker([lat, lon], {
+          radius: 4,
+          fillColor: '#ef4444',
+          color: '#ef4444',
+          fillOpacity: 0.6,
+          weight: 0
+        }).bindPopup(`<div style="font-family:Inter,sans-serif"><b style="color:#ef4444">${p.CrimeGroup_Name || 'Unknown'}</b><br/>${p.District_Name || ''}</div>`).addTo(map);
       });
 
-    // Add FIR points
-    const points = (crimeData.fir_points || []).map
-    points.forEach(p => {
-      if (!p.Latitude || !p.Longitude) return;
-      const lat = parseFloat(p.Latitude), lon = parseFloat(p.Longitude);
-      if (isNaN(lat) || isNaN(lon)) return;
-      L.circleMarker([lat, lon], {
-        radius: 4, fillColor: '#ef4444', color: '#ef4444',
-        fillOpacity: 0.6, weight: 0
-      }).bindPopup(`<div style="font-family:Inter,sans-serif"><b style="color:#ef4444">${p.CrimeGroup_Name || 'Unknown'}</b><br/>${p.District_Name} — ${p.Beat_Name || ''}<br/>Year: ${p.FIR_YEAR}</div>`).addTo(map);
-    });
+      setMapReady(true);
+    } catch(e) {
+      console.error('Map error:', e);
+    }
 
-    return () => { map.remove(); mapInstance.current = null; };
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
   }, []);
 
   return (
     <div>
-      <div style={{display:'flex', gap:8, marginBottom:16, flexWrap:'wrap'}}>
-        {crimeGroups.slice(0,6).map(g => (
-          <button key={g} onClick={() => setFilter(g)} style={{
-            ...S.btn(filter===g?'primary':'secondary'),
-            fontSize:11, padding:'6px 12px'
-          }}>{g === 'all' ? 'All crimes' : g}</button>
-        ))}
-      </div>
-      <div style={S.mapContainer}>
-        <div ref={mapRef} style={{height:'100%', width:'100%'}}/>
+      <div style={{...S.mapContainer, height: 500}}>
+        {!mapReady && (
+          <div style={{display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#64748b', fontSize:14}}>
+            Loading map...
+          </div>
+        )}
+        <div ref={mapRef} style={{height:'500px', width:'100%'}}/>
       </div>
       <div style={{...S.card, marginTop:16}}>
         <div style={S.cardTitle}>Legend — FIR density by district</div>
